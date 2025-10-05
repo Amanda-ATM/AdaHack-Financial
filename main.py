@@ -1,5 +1,4 @@
-#main.py 
-
+# main.py 
 import pygame
 import sys
 import time
@@ -7,9 +6,10 @@ import time
 #import all modules from teammates
 try:
     from Setup import Setup
-    from Explain import Explain
+    from explain import Explain  # Fixed lowercase
     from Visual import CatVisual
-    from Spendingoptions import SpendingOptions
+    from Spendingoptions import SpendingOptions  # Fixed case
+    from Financialstatuscalculator import FinancialStatus
 except ImportError as e:
     print(f"Warning: Could not import module: {e}")
 
@@ -17,7 +17,7 @@ class Game:
     def __init__(self):
         pygame.init()
         self.screen = pygame.display.set_mode((850, 750))
-        pygame.display.set_caption("Cat Finance Manager")
+        pygame.display.set_caption("FinCat - Cat Finance Manager")
         self.clock = pygame.time.Clock()
         
         #game state
@@ -27,6 +27,7 @@ class Game:
         #player data
         self.player_name = ""
         self.cat_choice = None
+        self.cat_name = ""
         
         #time tracking - 5 minutes per day
         self.current_day = 1
@@ -34,9 +35,12 @@ class Game:
         self.day_start_time = None
         
         #cat stats
-        self.cat_hunger = 100
-        self.cat_happiness = 100
-        self.cat_cleanliness = 100
+        self.cat_hunger = 50
+        self.cat_happiness = 50
+        self.cat_cleanliness = 50
+        
+        #financial status
+        self.finance = FinancialStatus(50)  # £50 weekly income
         
     def run_setup(self):
         #Run Setup.py first
@@ -46,25 +50,30 @@ class Game:
             
             if player_data:
                 self.player_name = player_data.get('name', 'Player')
-                self.cat_choice = player_data.get('cat', 'orange')
+                self.cat_choice = player_data.get('cat', 'black')  # Fixed default
+                self.cat_name = player_data.get('cat_name', 'Kitty')
                 self.game_state = "EXPLAIN"
             else:
                 self.running = False
-        except:
-            print("Setup not ready, using defaults")
+        except Exception as e:
+            print(f"Setup error: {e}, using defaults")
             self.player_name = "Player"
-            self.cat_choice = "orange"
+            self.cat_choice = "black"
+            self.cat_name = "Kitty"
             self.game_state = "EXPLAIN"
     
     def run_explanation(self):
         #Run Explain.py second
         try:
             explain = Explain(self.screen)
-            explain.run()
-            self.game_state = "PLAYING"
-            self.day_start_time = time.time()
-        except:
-            print("Explain not ready, going to game")
+            continue_game = explain.run()
+            if continue_game:
+                self.game_state = "PLAYING"
+                self.day_start_time = time.time()
+            else:
+                self.running = False
+        except Exception as e:
+            print(f"Explain error: {e}, going to game")
             self.game_state = "PLAYING"
             self.day_start_time = time.time()
     
@@ -81,12 +90,40 @@ class Game:
         self.day_start_time = time.time()
         
         #decrease cat stats each day
-        self.cat_hunger -= 20
-        self.cat_happiness -= 10
-        self.cat_cleanliness -= 15
+        self.cat_hunger = max(0, self.cat_hunger - 20)
+        self.cat_happiness = max(0, self.cat_happiness - 10)
+        self.cat_cleanliness = max(0, self.cat_cleanliness - 15)
+        
+        #Reset finance for new week (every 7 days)
+        if self.current_day % 7 == 1:
+            self.finance.next_week()
         
         print(f"Day {self.current_day} started")
         print(f"Hunger: {self.cat_hunger}, Happiness: {self.cat_happiness}, Cleanliness: {self.cat_cleanliness}")
+    
+    def handle_spending(self):
+        try:
+            spending_screen = SpendingOptions(self.screen, self.finance.savings)
+            purchases = spending_screen.run()
+            
+            if purchases:
+                total_cost = sum(item['price'] for item in purchases.values() if item)
+                self.finance.add_spending(total_cost)
+                self.update_cat_stats(purchases)
+                return True
+        except Exception as e:
+            print(f"Spending error: {e}")
+        return False
+    
+    def update_cat_stats(self, purchases):
+        if purchases:
+            # Update cat stats based on what was purchased
+            if purchases.get('food'):
+                self.cat_hunger = min(100, self.cat_hunger + 30)
+            if purchases.get('toy'):
+                self.cat_happiness = min(100, self.cat_happiness + 20)
+            if purchases.get('litter'):
+                self.cat_cleanliness = min(100, self.cat_cleanliness + 25)
     
     def run_visual(self):
         #Run Visual.py - it displays everything
@@ -98,21 +135,40 @@ class Game:
                 self.current_day,
                 self.cat_hunger,
                 self.cat_happiness,
-                self.cat_cleanliness
+                self.cat_cleanliness,
+                self.finance
             )
-            visual.draw()
-        except:
+            action = visual.draw()
+            
+            # Handle actions from visual screen
+            if action == "shop":
+                self.handle_spending()
+            elif action == "quit":
+                self.running = False
+                
+        except Exception as e:
             #fallback if Visual.py not ready
+            print(f"Visual error: {e}")
             self.screen.fill((255, 255, 255))
             font = pygame.font.Font(None, 36)
-            text = font.render("Waiting for Visual.py (Amanda's file)", True, (0, 0, 0))
+            text = font.render("Game Screen - Press SPACE to shop, Q to quit", True, (0, 0, 0))
             self.screen.blit(text, (200, 350))
+            
+            # Display basic info
+            info_text = font.render(f"Day: {self.current_day} | Money: £{self.finance.savings}", True, (0, 0, 0))
+            self.screen.blit(info_text, (200, 400))
+            
             pygame.display.flip()
             
             #check for quit event
             for event in pygame.event.get():
                 if event.type == pygame.QUIT:
                     self.running = False
+                elif event.type == pygame.KEYDOWN:
+                    if event.key == pygame.K_SPACE:
+                        self.handle_spending()
+                    elif event.key == pygame.K_q:
+                        self.running = False
     
     def run(self):
         #Main game loop - just calls components in order
@@ -131,7 +187,6 @@ class Game:
         
         pygame.quit()
         sys.exit()
-
 
 if __name__ == "__main__":
     game = Game()
