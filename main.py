@@ -41,6 +41,7 @@ class Game:
         
         #financial status
         self.finance = FinancialStatus(50)  # £50 weekly income
+        self.finance.savings = 50  # Start with £50 available
         
     def run_setup(self):
         #Run Setup.py first
@@ -63,7 +64,7 @@ class Game:
             self.game_state = "EXPLAIN"
     
     def run_explanation(self):
-        #Run Explain.py second
+       
         try:
             explain = Explain(self.screen)
             continue_game = explain.run()
@@ -97,13 +98,16 @@ class Game:
         #Reset finance for new week (every 7 days)
         if self.current_day % 7 == 1:
             self.finance.next_week()
+            self.finance.savings = self.finance.income  # Reset savings for new week
         
         print(f"Day {self.current_day} started")
         print(f"Hunger: {self.cat_hunger}, Happiness: {self.cat_happiness}, Cleanliness: {self.cat_cleanliness}")
     
     def handle_spending(self):
         try:
-            spending_screen = SpendingOptions(self.screen, self.finance.savings)
+            
+            available_money = self.finance.savings
+            spending_screen = SpendingOptions(self.screen, available_money)
             purchases = spending_screen.run()
             
             if purchases:
@@ -117,7 +121,7 @@ class Game:
     
     def update_cat_stats(self, purchases):
         if purchases:
-            # Update cat stats based on what was purchased
+            #Update cat stats based on what was purchased
             if purchases.get('food'):
                 self.cat_hunger = min(100, self.cat_hunger + 30)
             if purchases.get('toy'):
@@ -126,7 +130,7 @@ class Game:
                 self.cat_cleanliness = min(100, self.cat_cleanliness + 25)
     
     def run_visual(self):
-        #Run Visual.py - it displays everything
+        
         try:
             visual = CatVisual(
                 self.screen,
@@ -143,32 +147,49 @@ class Game:
             # Handle actions from visual screen
             if action == "shop":
                 self.handle_spending()
+            elif action == "tower":
+                print("Cat tower feature coming soon!")  
+               
+                self.show_message("Cat Tower feature coming in next update!")
             elif action == "quit":
                 self.running = False
                 
         except Exception as e:
-            #fallback if Visual.py not ready
+            
             print(f"Visual error: {e}")
-            self.screen.fill((255, 255, 255))
-            font = pygame.font.Font(None, 36)
-            text = font.render("Game Screen - Press SPACE to shop, Q to quit", True, (0, 0, 0))
-            self.screen.blit(text, (200, 350))
-            
-            # Display basic info
-            info_text = font.render(f"Day: {self.current_day} | Money: £{self.finance.savings}", True, (0, 0, 0))
-            self.screen.blit(info_text, (200, 400))
-            
-            pygame.display.flip()
-            
-            #check for quit event
-            for event in pygame.event.get():
-                if event.type == pygame.QUIT:
+            self.show_fallback_screen()
+    
+    def show_message(self, message):
+        """Show a temporary message"""
+        font = pygame.font.Font(None, 36)
+        self.screen.fill((255, 255, 255))
+        text = font.render(message, True, (0, 0, 0))
+        self.screen.blit(text, (200, 350))
+        pygame.display.flip()
+        pygame.time.wait(2000)  # Show for 2 seconds
+    
+    def show_fallback_screen(self):
+        """Fallback screen if Visual.py fails"""
+        self.screen.fill((255, 255, 255))
+        font = pygame.font.Font(None, 36)
+        text = font.render("Game Screen - Press SPACE to shop, Q to quit", True, (0, 0, 0))
+        self.screen.blit(text, (200, 350))
+        
+        # Display basic info
+        info_text = font.render(f"Day: {self.current_day} | Money: £{self.finance.savings}", True, (0, 0, 0))
+        self.screen.blit(info_text, (200, 400))
+        
+        pygame.display.flip()
+        
+        #check for quit event
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT:
+                self.running = False
+            elif event.type == pygame.KEYDOWN:
+                if event.key == pygame.K_SPACE:
+                    self.handle_spending()
+                elif event.key == pygame.K_q:
                     self.running = False
-                elif event.type == pygame.KEYDOWN:
-                    if event.key == pygame.K_SPACE:
-                        self.handle_spending()
-                    elif event.key == pygame.K_q:
-                        self.running = False
     
     def run(self):
         #Main game loop - just calls components in order

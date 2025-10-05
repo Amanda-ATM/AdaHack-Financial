@@ -68,6 +68,15 @@ class FinancialStatus:
         self.message = f"Week {self.week} begins! You earned £{self.base_income}, but owe £{self.debt_carry}."
         self.cat_face = "🐾"
 
+    def reset_week(self):
+        """Reset for new week with full income"""
+        self.income = self.base_income
+        self.savings = self.income
+        self.spending = 0
+        self.debt = 0
+        # Keep debt_carry for next week
+        self.update_balance()
+
     def get_summary(self):
         return {
             "Week": self.week,
@@ -166,29 +175,27 @@ class FinancialStatus:
         screen.blit(numbers, text_rect)
 
     def draw_status(self, screen, x, y):
-        pygame.draw.rect(screen, (240, 240, 240),
-                         (x - 30, y - 30, 420, 200), border_radius=10)
+        # Make the box smaller and properly positioned
+        box_width, box_height = 350, 180  # Reduced size
+        
+        # Draw background
+        pygame.draw.rect(screen, (240, 240, 240), (x, y, box_width, box_height), border_radius=10)
+        pygame.draw.rect(screen, (100, 100, 100), (x, y, box_width, box_height), 2, border_radius=10)
 
         # Title
-        title = self.font.render(
-            "Your Financial Summary", True, self.text_color)
-        screen.blit(title, (x, y-20))
+        title = self.font.render("Financial Summary", True, self.text_color)
+        screen.blit(title, (x + 10, y + 10))
 
-        # Chart
-        self.draw_chart(screen, x+20, y + 20)
+        # Chart - position it properly within the box
+        self.draw_chart(screen, x + 20, y + 50)
 
-        # Cat face
+        # Cat face and message
         cat_text = self.font.render(self.cat_face, True, (0, 0, 0))
-        screen.blit(cat_text, (x+350, y-10))
+        screen.blit(cat_text, (x + box_width - 30, y + 10))
 
-        # message
-        msg = self.font.render(self.message, True, self.text_color)
-        screen.blit(msg, (x+150, y+200))
-
-        # Short summary
-        summary = self.get_budget_summary()
-        summary_text = self.font.render(summary, True, (100, 100, 100))
-        screen.blit(summary_text, (x+20, y+140))
+        # Message below the chart
+        msg = self.small_font.render(self.message, True, self.text_color)
+        screen.blit(msg, (x + 10, y + box_height - 25))
 
     def get_budget_summary(self):
         if self.debt > 0:
